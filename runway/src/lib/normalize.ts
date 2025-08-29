@@ -36,11 +36,11 @@ export function initialCategory(description: string, vendor: string, amount: num
 
 export function normalizeCsvRecord(record: Record<string, string>): Transaction | null {
 	const keys = Object.fromEntries(Object.keys(record).map((k) => [k.toLowerCase().trim(), k]));
-	const dateKey = keys["date"] || keys["transaction date"] || keys["posted date"];
-	const descKey = keys["description"] || keys["details"] || keys["narrative"] || keys["merchant"];
-	const amountKey = keys["amount"];
-	const debitKey = keys["debit"] || keys["out"] || keys["withdrawal"];
-	const creditKey = keys["credit"] || keys["in"] || keys["deposit"];
+	const dateKey = keys["date"] || keys["transaction date"] || keys["posted date"] || keys["value date"] || keys["booking date"];
+	const descKey = keys["description"] || keys["details"] || keys["narrative"] || keys["merchant"] || keys["memo"] || keys["reference"] || keys["payee"];
+	const amountKey = keys["amount"] || keys["value"] || keys["amt"];
+	const debitKey = keys["debit"] || keys["out"] || keys["withdrawal"] || keys["debit amount"] || keys["debits"];
+	const creditKey = keys["credit"] || keys["in"] || keys["deposit"] || keys["credit amount"] || keys["credits"];
 
 	if (!dateKey || !descKey || (!amountKey && !debitKey && !creditKey)) return null;
 

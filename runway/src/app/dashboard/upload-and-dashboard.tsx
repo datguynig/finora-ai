@@ -13,23 +13,49 @@ const defaultScenario: Scenario = { revenueMonthlyGrowthPct: 0, saasReductionPct
 export default function UploadAndDashboard() {
 	const [transactions, setTransactions] = useState<Transaction[]>([]);
 	const [scenario, setScenario] = useState<Scenario>(defaultScenario);
+	const [isParsing, setIsParsing] = useState(false);
+	const [parseError, setParseError] = useState<string | null>(null);
+	const [rawRowCount, setRawRowCount] = useState<number | null>(null);
 
 	const metrics = useMemo(() => computeMetrics(transactions), [transactions]);
 	const forecast = useMemo(() => project(transactions, 12, scenario), [transactions, scenario]);
 
 	function handleCsvFile(file: File) {
+		setIsParsing(true);
+		setParseError(null);
+		setRawRowCount(null);
 		Papa.parse<Record<string, string>>(file, {
 			header: true,
-			skipEmptyLines: true,
-			worker: true,
+			skipEmptyLines: "greedy",
+			worker: false, // more reliable across environments
+			transformHeader: (h) => (h ?? "").trim(),
 			complete: (result) => {
-				const rows = result.data;
-				const txns: Transaction[] = [];
-				for (const r of rows) {
-					const t = normalizeCsvRecord(r);
-					if (t) txns.push(t);
+				try {
+					const rows = result.data || [];
+					setRawRowCount(rows.length);
+					if (result.errors && result.errors.length > 0) {
+						setParseError(`CSV parse warnings: ${result.errors[0]?.message ?? "unknown"}`);
+					}
+					const txns: Transaction[] = [];
+					for (const r of rows) {
+						const t = normalizeCsvRecord(r);
+						if (t) txns.push(t);
+					}
+					if (txns.length === 0) {
+						setParseError(
+							"No transactions recognized. Ensure your CSV has columns like Date, Description, Amount (or Debit/Credit)."
+						);
+					}
+					setTransactions(detectRecurring(txns));
+				} catch (e: any) {
+					setParseError(e?.message ?? "Failed to process CSV");
+				} finally {
+					setIsParsing(false);
 				}
-				setTransactions(detectRecurring(txns));
+			},
+			error: (err) => {
+				setParseError(err?.message ?? "CSV parse error");
+				setIsParsing(false);
 			},
 		});
 	}
@@ -44,6 +70,16 @@ export default function UploadAndDashboard() {
 				<input type="file" accept=".csv" onChange={(e) => e.target.files && handleCsvFile(e.target.files[0])} />
 				<div className="text-sm text-gray-500">CSV only for MVP. PDF coming soon.</div>
 			</div>
+
+			{isParsing && (
+				<div className="text-sm text-blue-700">Parsing CSV…</div>
+			)}
+			{parseError && (
+				<div className="text-sm text-red-600">{parseError}</div>
+			)}
+			{rawRowCount !== null && (
+				<div className="text-xs text-gray-600">Parsed rows: {rawRowCount}. Recognized transactions: {transactions.length}.</div>
+			)}
 
 			{transactions.length > 0 && (
 				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
